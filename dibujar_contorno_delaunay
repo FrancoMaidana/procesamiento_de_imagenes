@@ -1,0 +1,63 @@
+def dibujar_contorno_delaunay(imagen, puntos, triangulacion, color=(0, 255, 0), grosor=2):
+    """
+    Dibuja el contorno exterior de una triangulación de Delaunay sobre una imagen.
+
+    Args:
+        imagen (np.array): Imagen sobre la cual se va a dibujar.
+        puntos (np.array): Array de forma (N, 2) con coordenadas (x, y).
+        triangulacion (Delaunay): Objeto Delaunay generado con scipy.spatial.Delaunay.
+        color (tuple): Color BGR del contorno.
+        grosor (int): Grosor de la línea del contorno.
+
+    Returns:
+        np.array: Imagen con el contorno dibujado.
+    """
+
+    def normalizar_lado(p1, p2):
+        return tuple(sorted([tuple(p1), tuple(p2)]))
+
+    def construir_contorno_ordenado(lados_unicos):
+        grafo = defaultdict(list)
+        for a, b in lados_unicos:
+            grafo[a].append(b)
+            grafo[b].append(a)
+
+        inicio = next(p for p, vecinos in grafo.items() if len(vecinos) == 1 or len(vecinos) == 2)
+        contorno = [inicio]
+        actual = inicio
+        anterior = None
+
+        while True:
+            vecinos = grafo[actual]
+            siguiente = vecinos[0] if vecinos[0] != anterior else (vecinos[1] if len(vecinos) > 1 else None)
+            if siguiente is None or siguiente == inicio:
+                break
+            contorno.append(siguiente)
+            anterior, actual = actual, siguiente
+
+        return np.array(contorno, dtype=np.int32)
+
+    # Paso 1: Extraer todos los lados de los triángulos
+    todos_los_lados = []
+    for simplex in triangulacion.simplices:
+        tri_pts = puntos[simplex]
+        lados = [
+            normalizar_lado(tri_pts[0], tri_pts[1]),
+            normalizar_lado(tri_pts[1], tri_pts[2]),
+            normalizar_lado(tri_pts[2], tri_pts[0])
+        ]
+        todos_los_lados.extend(lados)
+
+    # Paso 2: Contar repeticiones
+    contador = Counter(todos_los_lados)
+
+    # Paso 3: Filtrar lados únicos (los del borde)
+    lados_unicos = [lado for lado, count in contador.items() if count == 1]
+
+    # Paso 4: Ordenar los lados para formar el contorno
+    contorno_ordenado = construir_contorno_ordenado(lados_unicos)
+
+    # Paso 5: Dibujar el contorno sobre la imagen
+    cv2.polylines(imagen, [contorno_ordenado], isClosed=True, color=color, thickness=grosor)
+
+    return imagen
