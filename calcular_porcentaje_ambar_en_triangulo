@@ -1,0 +1,54 @@
+def calcular_porcentaje_ambar_en_triangulo(frame, puntos_triangulo,config):
+    """
+    Calcula el porcentaje de color ámbar dentro de un área triangular en un frame.
+
+    Args:
+        frame: La imagen o fotograma a analizar (en formato BGR).
+        puntos_triangulo: Un array de NumPy con las coordenadas de los 3 vértices
+                          del triángulo. Ej: np.array([[x1,y1], [x2,y2], [x3,y3]]).
+
+    Returns:
+        Un float con el porcentaje de color ámbar (0.0 a 100.0).
+    """
+    if frame is None or puntos_triangulo is None: #or len(puntos_triangulo) != 3:
+        print("Error: Datos de entrada no válidos.")
+        return 0.0
+
+    h, w, _ = frame.shape
+
+    # --- PASO 1: Crear una máscara con la forma del triángulo ---
+    mask_triangulo = np.zeros((h, w), dtype=np.uint8)# 
+    # cv2.fillPoly necesita una lista de polígonos
+    cv2.fillPoly(mask_triangulo, [puntos_triangulo.astype(np.int32)], 255)
+
+    # Contar el total de píxeles en nuestra área de interés
+    total_pixeles_en_triangulo = cv2.countNonZero(mask_triangulo)
+    if total_pixeles_en_triangulo == 0:
+        return 0.0 # Evitar división por cero si el triángulo es inválido
+
+    # --- PASO 2: Crear una máscara con el color ámbar de todo el frame ---
+    hsv_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)
+    mask_ambar_total = cv2.inRange(hsv_frame, config['AMBAR_BAJO'], config['AMBAR_ALTO'])
+    #cv2.imshow("mascara ambra total", mask_ambar_total)
+
+    # --- PASO 3: Encontrar la intersección de ambas máscaras ---
+    # Esto nos da solo los píxeles que son ámbar Y están dentro del triángulo
+    ambar_en_triangulo_mask = cv2.bitwise_and(mask_ambar_total, mask_triangulo)
+
+    # Contar cuántos píxeles ámbar hay dentro del triángulo
+    pixeles_ambar_en_triangulo = cv2.countNonZero(ambar_en_triangulo_mask)
+
+    # --- PASO 4: Calcular el porcentaje ---
+    porcentaje = (pixeles_ambar_en_triangulo / total_pixeles_en_triangulo) * 100
+    cv2.putText(frame, f"%: {porcentaje:.2f}", puntos_triangulo.astype(np.int32)[0], 
+                        cv2.FONT_HERSHEY_SIMPLEX, 0.8, (255, 255, 255), 2)
+    #cv2.imshow("porcentaje", frame)
+    cv2.namedWindow('mascara_triangulo')
+    cv2.resizeWindow('mascara_triangulo', 300, 300)
+    cv2.namedWindow('ambar en triangulo')
+    cv2.resizeWindow('ambar en triangulo', 300, 300)
+    cv2.imshow("mascara_triangulo", mask_triangulo)
+    #cv2.imshow("amabar", mask_ambar_total)
+    cv2.imshow("ambar en triangulo",ambar_en_triangulo_mask)
+    # Devolver el resultado y las máscaras para visualización
+    return porcentaje#, mask_triangulo, mask_ambar_total, ambar_en_triangulo_mask
